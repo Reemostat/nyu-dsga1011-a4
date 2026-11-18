@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+*.pyc
+.claude/settings.local.json
+
+# Large training artifacts (do not commit)
+part1/out/
+part1/out_augmented/
+part2/checkpoints/
+hpc/logs/
+*.ext3
+*.sif
