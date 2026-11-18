@@ -15,8 +15,9 @@ if [ ! -f "$SIF" ]; then
     echo "Using image $SRC"; cp "$SRC" "$SIF"
 fi
 if [ ! -f "$OVERLAY" ]; then
-    SRC=$(find_first /scratch/work/public/overlay-fs-ext3/overlay-25GB-500K.ext3.gz \
-                     /share/apps/overlay-fs-ext3/overlay-25GB-500K.ext3.gz)
+    SRC=$(find_first /share/apps/overlay-fs-ext3/overlay-25GB-500K.ext3.gz \
+                     /scratch/work/public/overlay-fs-ext3/overlay-25GB-500K.ext3.gz \
+                     /share/apps/overlay-fs-ext3/overlay-15GB-500K.ext3.gz)
     [ -z "$SRC" ] && { echo "Overlay template not found - run: ls /share/apps/overlay-fs-ext3 /scratch/work/public/overlay-fs-ext3"; exit 1; }
     echo "Using overlay $SRC"; cp "$SRC" "$OVERLAY.gz"; gunzip "$OVERLAY.gz"
 fi
@@ -39,16 +40,17 @@ conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r 
 # ---- Part 1 env ----
 conda env list | grep -q '^a4p1 ' || conda create -n a4p1 python=3.11
 conda activate a4p1
-pip install -r $A4_ROOT/part1/requirements.txt
+pip install --no-cache-dir -r $A4_ROOT/part1/requirements.txt
 python -c \"import nltk; nltk.download('wordnet', download_dir='$NLTK_DATA'); nltk.download('punkt', download_dir='$NLTK_DATA')\"
 conda deactivate
 
 # ---- Part 2 env ----
 conda env list | grep -q '^a4p2 ' || conda create -n a4p2 python=3.11
 conda activate a4p2
-pip install -r $A4_ROOT/part2/requirements.txt
+pip install --no-cache-dir -r $A4_ROOT/part2/requirements.txt
 python -c \"import nltk; nltk.download('punkt', download_dir='$NLTK_DATA')\"
 conda deactivate
+conda clean -a -y
 "
 
 echo "Checking GPU visibility from both envs..."
