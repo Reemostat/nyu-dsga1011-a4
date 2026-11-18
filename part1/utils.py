@@ -37,8 +37,8 @@ def example_transform(example):
 import re
 
 # Hyperparameters of the transformation
-SYNONYM_PROB = 0.25  # prob. that an eligible word is replaced by a WordNet synonym
-TYPO_PROB = 0.10     # prob. that a (non-replaced) word gets a single keyboard typo
+SYNONYM_PROB = 0.30  # prob. that an eligible word is replaced by a WordNet synonym
+TYPO_PROB = 0.20     # prob. that a (non-replaced) word gets a single keyboard typo
 MIN_WORD_LEN = 4     # only words with at least this many letters are touched
 
 # Adjacent keys on a QWERTY keyboard
