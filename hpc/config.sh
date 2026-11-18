@@ -14,13 +14,23 @@ export NLTK_DATA="/scratch/$USER/nltk_data"
 export TMPDIR="/scratch/$USER/tmp"
 mkdir -p "$HF_HOME" "$NLTK_DATA" "$TMPDIR"
 
-# Run a command inside the container with the given conda env.
+# Fallback location if the Singularity overlay can't be used (see setup_env.sh)
+export NATIVE_CONDA="/scratch/$USER/a4_miniconda3"
+export ENV_MODE_FILE="/scratch/$USER/.a4_env_mode"
+
+# Run a command with the given conda env activated.
 #   run_in_env <env-name> "<shell command>"
-# The overlay is mounted read-only so several jobs can run at the same time.
+# overlay mode: inside the container, overlay mounted read-only (so jobs can run in parallel)
+# native mode : plain miniconda on /scratch
 run_in_env() {
-    singularity exec --bind /scratch --nv --overlay "$OVERLAY:ro" "$SIF" /bin/bash -c "
-        source /ext3/miniconda3/etc/profile.d/conda.sh
-        conda activate $1
+    local mode=$(cat "$ENV_MODE_FILE" 2>/dev/null || echo overlay)
+    local body="
         export HF_HOME=$HF_HOME NLTK_DATA=$NLTK_DATA TMPDIR=$TMPDIR TOKENIZERS_PARALLELISM=false
         $2"
+    if [ "$mode" = "native" ]; then
+        bash -c "source $NATIVE_CONDA/etc/profile.d/conda.sh && conda activate $1 && $body"
+    else
+        singularity exec --nv --overlay "$OVERLAY:ro" "$SIF" /bin/bash -c "
+            source /ext3/miniconda3/etc/profile.d/conda.sh && conda activate $1 && $body"
+    fi
 }
