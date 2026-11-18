@@ -7,12 +7,18 @@ set -e
 source "$(dirname "$0")/config.sh"
 
 cd /scratch/$USER
+find_first() { for p in "$@"; do [ -f "$p" ] && { echo "$p"; return; }; done; }
 if [ ! -f "$SIF" ]; then
-    cp /share/apps/images/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif "$SIF"
+    SRC=$(find_first /share/apps/images/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
+                     $(ls /share/apps/images/cuda12*ubuntu22*.sif 2>/dev/null))
+    [ -z "$SRC" ] && { echo "No CUDA 12 .sif found in /share/apps/images - run: ls /share/apps/images"; exit 1; }
+    echo "Using image $SRC"; cp "$SRC" "$SIF"
 fi
 if [ ! -f "$OVERLAY" ]; then
-    cp /scratch/work/public/overlay-fs-ext3/overlay-25GB-500K.ext3.gz "$OVERLAY.gz"
-    gunzip "$OVERLAY.gz"
+    SRC=$(find_first /scratch/work/public/overlay-fs-ext3/overlay-25GB-500K.ext3.gz \
+                     /share/apps/overlay-fs-ext3/overlay-25GB-500K.ext3.gz)
+    [ -z "$SRC" ] && { echo "Overlay template not found - run: ls /share/apps/overlay-fs-ext3 /scratch/work/public/overlay-fs-ext3"; exit 1; }
+    echo "Using overlay $SRC"; cp "$SRC" "$OVERLAY.gz"; gunzip "$OVERLAY.gz"
 fi
 
 # Installation needs the overlay mounted read-write

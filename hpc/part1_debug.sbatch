@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=a4_p1_debug
-#SBATCH --partition=c12m85-a100-1
 #SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
 #SBATCH --time=00:45:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.out

@@ -1,6 +1,8 @@
 # Shared settings for all HPC scripts. EDIT THE FIRST LINE before submitting jobs.
 # Find your account with:  sacctmgr show assoc user=$USER format=account%50
 export SLURM_ACCOUNT_NAME="YOUR_DSGA1011_ACCOUNT"
+# Leave empty on the main Torch cluster. On the burst portal use e.g. "c12m85-a100-1".
+export SLURM_PARTITION_NAME=""
 
 export A4_ROOT="/scratch/$USER/nyu-dsga1011-a4"          # where you git clone the repo
 export SIF="/scratch/$USER/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif"

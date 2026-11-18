@@ -8,4 +8,6 @@ if [ "$SLURM_ACCOUNT_NAME" = "YOUR_DSGA1011_ACCOUNT" ]; then
     echo "Edit SLURM_ACCOUNT_NAME in hpc/config.sh first."; exit 1
 fi
 mkdir -p logs
-sbatch --account="$SLURM_ACCOUNT_NAME" "$@"
+PART_ARG=()
+[ -n "$SLURM_PARTITION_NAME" ] && PART_ARG=(--partition="$SLURM_PARTITION_NAME")
+sbatch --account="$SLURM_ACCOUNT_NAME" "${PART_ARG[@]}" "$@"
