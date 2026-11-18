@@ -29,7 +29,10 @@ fi
 
 MODE=""
 RW_FLAGS=""
+# FORCE_NATIVE=1 bash setup_env.sh   -> skip the container entirely
+[ "${FORCE_NATIVE:-0}" = "1" ] && SKIP_OVERLAY=1
 for flags in "" "--fakeroot"; do
+    [ -n "$SKIP_OVERLAY" ] && break
     echo ">>> Testing writable overlay ${flags:-(default)}"
     if singularity exec $flags --overlay "$OVERLAY:rw" "$SIF" touch /ext3/.write_test 2>/dev/null; then
         MODE="overlay"; RW_FLAGS="$flags"; break
