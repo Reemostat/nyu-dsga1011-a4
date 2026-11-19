@@ -238,7 +238,8 @@ Error Type & Example of Error & Error Description & Statistics \\
 \midrule
 Wrong constant / value &
 NL: \emph{``flights arriving in baltimore from philadelphia at about 4 o'clock''}.
-Gold: \texttt{arrival\_time >= 1530 AND arrival\_time <= 1630}; the prediction uses a different time window. &
+Gold: \texttt{arrival\_time >= 1530 AND arrival\_time <= 1630}.
+Predicted: \texttt{arrival\_time >= 1630 AND arrival\_time <= 1630}, which keeps only flights arriving exactly at 16:30. &
 The SQL structure is right but a literal is wrong: a time window, date, number or code. Fuzzy expressions
 (\emph{about 4}, \emph{morning}) must be mapped to numeric ranges, and the decoder has to copy or compute numbers
 that appear in the NL only as words (\emph{four}, \emph{ninth}). &
