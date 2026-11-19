@@ -187,7 +187,9 @@ AdamW (lr $5\times10^{-4}$, $\beta=(0.9,0.999)$, $\epsilon=10^{-8}$, weight deca
 LayerNorm), batch size 16, cosine schedule with 1 warm-up epoch and 20 scheduled epochs, token-level cross-entropy.
 After every epoch the model is evaluated on dev by generating with beam search (4 beams, up to 512 new tokens) and
 executing the SQL. The checkpoint with the best dev Record F1 is kept, with early stopping after 5 epochs without
-improvement. The run hit the 3-hour job limit during epoch 15; the best checkpoint is from epoch 14 (index 13). \\
+improvement. The run hit the 3-hour job limit during epoch 15; the best checkpoint is from epoch 14 (index 13).
+For the final predictions the saved checkpoint is decoded \emph{greedily} (up to 512 new tokens), which was
+better than beam search on dev (Table~4). \\
 \bottomrule
 \end{tabularx}
 \caption{Details of the best-performing T5 model configuration (fine-tuned).}
@@ -202,8 +204,8 @@ System & Query EM & F1 score \\
 \midrule
 \multicolumn{3}{l}{\textbf{Dev Results}} \\
 \multicolumn{3}{l}{\emph{T5 fine-tuned}} \\
-Full model (best epoch, beam 4) & 63.09 & 80.16 \\
-\todo{ablation row(s)} & \todo{} & \todo{} \\
+Full model, greedy decoding (final) & 67.60 & 82.91 \\
+Full model, beam search (4 beams) & 63.09 & 80.16 \\
 \midrule
 \multicolumn{3}{l}{\textbf{Test Results}} \\
 T5 fine-tuning & \todo{} & \todo{} \\
@@ -217,6 +219,14 @@ epoch 1: 27.6, 2: 42.7, 3: 55.7, 4: 61.1, 5: 69.2, 6: 69.4, 7: 74.9, 8: 75.7, 9:
 12: 78.4, 13: 78.5, 14: 79.6.
 Re-evaluating the saved best checkpoint gives Record F1 80.16, Record EM 77.25, SQL EM 63.09, with 7.94\% of
 generated queries raising an SQL error (the small F1 difference from 79.6 comes from non-deterministic GPU batched beam search).
+
+\noindent\textbf{Decoding ablation.} Decoding the same checkpoint greedily gives Record F1 82.91, Record EM 80.90,
+SQL EM 67.60 and 7.08\% SQL errors, better than beam search on every metric. The dev loss is identical (0.0202),
+so the only difference is the search procedure. A likely explanation: beam search ranks complete hypotheses by total log-probability, so it
+favours shorter queries: hypotheses that drop a join or a \texttt{WHERE} clause pay fewer per-token penalties.
+In this task, dropping one condition makes the records wrong. Greedy decoding stays on the token-by-token
+most likely path, which the model was trained to follow with teacher forcing, and so produces the full,
+long ATIS queries more reliably. The final system therefore uses greedy decoding.
 
 \begin{table}[h]
 \centering
@@ -276,7 +286,7 @@ structural differences, such as extra selected columns or extra filters (e.g.\ a
 \end{table}
 
 \subsection*{Q7. Performance evaluation}
-Test predictions: \texttt{results/t5\_ft\_experiment\_test.sql} and \texttt{records/t5\_ft\_experiment\_test.pkl}.
+Test predictions (greedy decoding of the best checkpoint): \texttt{results/t5\_ft\_experiment\_test.sql} and \texttt{records/t5\_ft\_experiment\_test.pkl}.
 Test Record F1 as reported on the leaderboard: \todo{}.
 
 \end{document}
