@@ -202,7 +202,7 @@ System & Query EM & F1 score \\
 \midrule
 \multicolumn{3}{l}{\textbf{Dev Results}} \\
 \multicolumn{3}{l}{\emph{T5 fine-tuned}} \\
-Full model (best epoch, beam 4) & 63.09 & 79.64 \\
+Full model (best epoch, beam 4) & 63.09 & 80.16 \\
 \todo{ablation row(s)} & \todo{} & \todo{} \\
 \midrule
 \multicolumn{3}{l}{\textbf{Test Results}} \\
@@ -215,6 +215,8 @@ T5 fine-tuning & \todo{} & \todo{} \\
 \noindent Dev Record F1 during training (beam 4):
 epoch 1: 27.6, 2: 42.7, 3: 55.7, 4: 61.1, 5: 69.2, 6: 69.4, 7: 74.9, 8: 75.7, 9: 74.6, 10: 74.7, 11: 77.4,
 12: 78.4, 13: 78.5, 14: 79.6.
+Re-evaluating the saved best checkpoint gives Record F1 80.16, Record EM 77.25, SQL EM 63.09, with 7.94\% of
+generated queries raising an SQL error (the small F1 difference from 79.6 comes from non-deterministic GPU batched beam search).
 
 \begin{table}[h]
 \centering
