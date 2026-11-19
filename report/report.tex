@@ -238,17 +238,15 @@ Error Type & Example of Error & Error Description & Statistics \\
 \midrule
 Wrong constant / value &
 NL: \emph{``flights arriving in baltimore from philadelphia at about 4 o'clock''}.
-Gold: \texttt{arrival\_time >= 1530 AND arrival\_time <= 1630}.
-Predicted: \texttt{arrival\_time >= 1630 AND arrival\_time <= 1630}. &
+Gold: \texttt{arrival\_time >= 1530 AND arrival\_time <= 1630}; the prediction uses a different time window. &
 The SQL structure is right but a literal is wrong: a time window, date, number or code. Fuzzy expressions
 (\emph{about 4}, \emph{morning}) must be mapped to numeric ranges, and the decoder has to copy or compute numbers
-that appear in the NL only as words (\emph{four}, \emph{ninth}). Superlatives fall in this group too: for
-\emph{``with the maximum number of stops''} the model writes \texttt{stops = 0} instead of a
-\texttt{MAX(stops)} sub-query, falling back to the far more frequent training pattern. &
-56/466 \\
+that appear in the NL only as words (\emph{four}, \emph{ninth}). &
+48/466 \\
 \midrule
 Malformed SQL (syntax) &
-Execution fails with \texttt{OperationalError: incomplete input} or \texttt{near ")": syntax error}. &
+Execution fails with \texttt{near ")": syntax error} (10), \texttt{incomplete input} (3) or an unterminated string
+literal (1). &
 The query has unbalanced parentheses or is cut off. Gold queries are long (mean $\approx$210 tokens, up to 510)
 with nested \texttt{AND(}\ldots\texttt{)} groups and sub-queries. A sequence model keeps no explicit stack, so it
 loses track of how many brackets are open. &
@@ -256,34 +254,52 @@ loses track of how many brackets are open. &
 \midrule
 Undeclared table alias (schema) &
 \texttt{no such column: flight\_fare\_1.flight\_id}: the WHERE clause joins on \texttt{flight\_fare\_1}, but
-\texttt{flight\_fare flight\_fare\_1} never appears in the FROM list. &
+\texttt{flight\_fare flight\_fare\_1} never appears in the FROM list. Similar errors occur for \texttt{flight\_stop\_1},
+\texttt{city\_2} and \texttt{airport\_1}. &
 The FROM list and the WHERE conditions are produced far apart in the sequence, and nothing forces them to agree.
-The model reproduces a familiar join chain without having declared every table it uses. &
-11/466 \\
+The model reproduces a familiar join chain without having declared every table it uses (8 cases, plus 1
+ambiguous column name). &
+9/466 \\
 \midrule
 Missing join condition (time-out) &
-NL: \emph{``flights and prices from la to charlotte for monday morning''}. The prediction lists
-\texttt{flight\_fare flight\_fare\_1 , fare fare\_1} in FROM but never joins them to \texttt{flight\_1}. &
-Tables are declared but not connected, so SQLite builds a huge Cartesian product and the query hits the 120\,s
-timeout, which yields no records. This happens in the longest queries that mix flight and fare information. &
+The query declares several tables in FROM without connecting all of them in WHERE, and execution hits the 120\,s
+time-out. &
+Tables that are declared but not connected make SQLite build a huge Cartesian product, so no records are returned.
+This happens in the longest queries that mix flight and fare information. &
+4/466 \\
+\midrule
+Wrong flight direction &
+NL: \emph{``show me the united flights from bwi to denver''}. Gold: \texttt{from\_airport = \ldots 'BWI'} and
+\texttt{to\_airport = \ldots 'DENVER'}. Predicted: \texttt{from\_airport} for \emph{both} BWI and Denver.
+Also \emph{``i need to reverse the flight from pittsburgh to denver''}: the prediction keeps Pittsburgh as origin. &
+All the right tables and constants are present, but a city is attached to the wrong column. Origin and destination
+use identical join chains that differ only in \texttt{from\_airport}/\texttt{to\_airport}, so one wrong token
+silently reverses or breaks the route. Cues like \emph{reverse} are rare in training. &
+4/466 \\
+\midrule
+Wrong selected columns &
+NL: \emph{``show me times for flights from san francisco to atlanta''}. Gold selects
+\texttt{departure\_time, arrival\_time}; predicted selects only \texttt{departure\_time}. Also \emph{``define
+airline us''}: only \texttt{airline\_code} instead of code, name and note. &
+The WHERE clause is correct but the SELECT list is not. Which columns to return depends on vague words
+(\emph{times}, \emph{define}, \emph{about}), and the training data is inconsistent about them. &
 4/466 \\
 \midrule
 Wrong query intent / tables &
-NL: \emph{``i'm starting from denver''}. Gold: flights from Denver. Predicted:
-\texttt{SELECT DISTINCT ground\_service\_1.transport\_type FROM ground\_service \ldots}.
-Also \emph{``what is sa''} $\to$ looks up airline code SA instead of day code SA. &
-The model queries the wrong part of the schema. These utterances are short or depend on dialogue context that is
-missing in single-turn data (ATIS was collected as dialogues), so the NL alone is ambiguous between several
-tables. &
-9/466 \\
+NL: \emph{``what is sa''}. Gold: day name for day code SA. Predicted: looks up airline code SA. Also
+\emph{``flights into atlanta's airport''}: predicted \texttt{airport\_code = 'ATLANTA'} instead of joining through
+the city table. &
+The model queries the wrong part of the schema. These utterances are short or ambiguous, and ATIS was collected
+as dialogues, so the context that would disambiguate them is missing. &
+3/466 \\
 \bottomrule
 \end{tabularx}
-\caption{Qualitative error analysis on the dev set (best fine-tuned T5). Of 466 dev queries, 106 return records
-that differ from the gold records, and 37 raise an SQL error. Categories were assigned with
-\texttt{error\_analysis.py} (execution errors first, then literal mismatches, then table-set mismatches) and checked
-by hand. The remaining 12 wrong-record cases are 3 other execution errors, 1 missing condition, and 8 other
-structural differences, such as extra selected columns or extra filters (e.g.\ adding \texttt{departure\_time BETWEEN 0 AND 1200} for ``morning'' when the question asks for
-``before 8'').}
+\caption{Qualitative error analysis on the dev set for the final model (best checkpoint, greedy decoding).
+Of 466 dev queries, 89 return records that differ from the gold records. 33 predictions raise an SQL error; 27 of
+these are wrong, and the other 6 still count as correct because the gold query also returns no records.
+Categories were assigned with \texttt{error\_analysis.py} (execution errors first, then literal mismatches, then
+table-set mismatches) and the structural cases were checked by hand. The remaining 3 wrong-record cases are a
+\texttt{COUNT} added to ``how many seats in a 734'', a sub-query missing its joins, and one long multi-stop query.}
 \end{table}
 
 \subsection*{Q7. Performance evaluation}
