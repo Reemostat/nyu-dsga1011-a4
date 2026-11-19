@@ -221,16 +221,58 @@ generated queries raising an SQL error (the small F1 difference from 79.6 comes 
 \begin{table}[h]
 \centering
 \small
-\begin{tabularx}{\textwidth}{lXXl}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.4cm}XXl}
 \toprule
 Error Type & Example of Error & Error Description & Statistics \\
 \midrule
-\todo{} & \todo{} & \todo{} & \todo{}/466 \\
-\todo{} & \todo{} & \todo{} & \todo{}/466 \\
-\todo{} & \todo{} & \todo{} & \todo{}/466 \\
+Wrong constant / value &
+NL: \emph{``flights arriving in baltimore from philadelphia at about 4 o'clock''}.
+Gold: \texttt{arrival\_time >= 1530 AND arrival\_time <= 1630}.
+Predicted: \texttt{arrival\_time >= 1630 AND arrival\_time <= 1630}. &
+The SQL structure is right but a literal is wrong: a time window, date, number or code. Fuzzy expressions
+(\emph{about 4}, \emph{morning}) must be mapped to numeric ranges, and the decoder has to copy or compute numbers
+that appear in the NL only as words (\emph{four}, \emph{ninth}). Superlatives fall in this group too: for
+\emph{``with the maximum number of stops''} the model writes \texttt{stops = 0} instead of a
+\texttt{MAX(stops)} sub-query, falling back to the far more frequent training pattern. &
+56/466 \\
+\midrule
+Malformed SQL (syntax) &
+Execution fails with \texttt{OperationalError: incomplete input} or \texttt{near ")": syntax error}. &
+The query has unbalanced parentheses or is cut off. Gold queries are long (mean $\approx$210 tokens, up to 510)
+with nested \texttt{AND(}\ldots\texttt{)} groups and sub-queries. A sequence model keeps no explicit stack, so it
+loses track of how many brackets are open. &
+14/466 \\
+\midrule
+Undeclared table alias (schema) &
+\texttt{no such column: flight\_fare\_1.flight\_id}: the WHERE clause joins on \texttt{flight\_fare\_1}, but
+\texttt{flight\_fare flight\_fare\_1} never appears in the FROM list. &
+The FROM list and the WHERE conditions are produced far apart in the sequence, and nothing forces them to agree.
+The model reproduces a familiar join chain without having declared every table it uses. &
+11/466 \\
+\midrule
+Missing join condition (time-out) &
+NL: \emph{``flights and prices from la to charlotte for monday morning''}. The prediction lists
+\texttt{flight\_fare flight\_fare\_1 , fare fare\_1} in FROM but never joins them to \texttt{flight\_1}. &
+Tables are declared but not connected, so SQLite builds a huge Cartesian product and the query hits the 120\,s
+timeout, which yields no records. This happens in the longest queries that mix flight and fare information. &
+4/466 \\
+\midrule
+Wrong query intent / tables &
+NL: \emph{``i'm starting from denver''}. Gold: flights from Denver. Predicted:
+\texttt{SELECT DISTINCT ground\_service\_1.transport\_type FROM ground\_service \ldots}.
+Also \emph{``what is sa''} $\to$ looks up airline code SA instead of day code SA. &
+The model queries the wrong part of the schema. These utterances are short or depend on dialogue context that is
+missing in single-turn data (ATIS was collected as dialogues), so the NL alone is ambiguous between several
+tables. &
+9/466 \\
 \bottomrule
 \end{tabularx}
-\caption{Qualitative error analysis on the dev set.}
+\caption{Qualitative error analysis on the dev set (best fine-tuned T5). Of 466 dev queries, 106 return records
+that differ from the gold records, and 37 raise an SQL error. Categories were assigned with
+\texttt{error\_analysis.py} (execution errors first, then literal mismatches, then table-set mismatches) and checked
+by hand. The remaining 12 wrong-record cases are 3 other execution errors, 1 missing condition, and 8 other
+structural differences, such as extra selected columns or extra filters (e.g.\ adding \texttt{departure\_time BETWEEN 0 AND 1200} for ``morning'' when the question asks for
+``before 8'').}
 \end{table}
 
 \subsection*{Q7. Performance evaluation}
