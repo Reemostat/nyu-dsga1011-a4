@@ -10,3 +10,4 @@ part2/checkpoints/
 hpc/logs/
 *.ext3
 *.sif
+part2/dev_errors.txt
