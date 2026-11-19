@@ -54,6 +54,8 @@ def get_args():
     parser.add_argument('--num_beams', type=int, default=4, help="1 = greedy decoding")
     parser.add_argument('--max_gen_length', type=int, default=512)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--eval_only', action='store_true',
+                        help="Skip training: load the saved best checkpoint and run dev eval + test inference")
 
     args = parser.parse_args()
     return args
@@ -225,11 +227,12 @@ def main():
 
     # Load the data and the model
     train_loader, dev_loader, test_loader = load_t5_data(args.batch_size, args.test_batch_size)
-    model = initialize_model(args)
-    optimizer, scheduler = initialize_optimizer_and_scheduler(args, model, len(train_loader))
+    if not args.eval_only:
+        model = initialize_model(args)
+        optimizer, scheduler = initialize_optimizer_and_scheduler(args, model, len(train_loader))
 
-    # Train 
-    train(args, model, train_loader, dev_loader, optimizer, scheduler)
+        # Train
+        train(args, model, train_loader, dev_loader, optimizer, scheduler)
 
     # Evaluate
     model = load_model_from_checkpoint(args, best=True)
