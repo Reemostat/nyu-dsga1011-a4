@@ -2,7 +2,11 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{booktabs}
 \usepackage{tabularx}
+\usepackage{float}
+\usepackage{array}
+\usepackage{xurl}
 \usepackage{hyperref}
+\emergencystretch=2em
 \usepackage{xcolor}
 \usepackage{enumitem}
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
@@ -15,7 +19,8 @@
 \maketitle
 
 \noindent\textbf{Code:} \url{https://github.com/Reemostat/nyu-dsga1011-a4}\\
-\textbf{Model checkpoint (Q7):} \url{https://drive.google.com/drive/folders/1r81kBF-5GTwNHe0AyCS-G5l7I_yAfrBk} (\texttt{t5\_best\_checkpoint.tar.gz}: fine-tuned \texttt{t5-small}, best epoch)
+\textbf{Model checkpoint (Q7):} \url{https://drive.google.com/drive/folders/1r81kBF-5GTwNHe0AyCS-G5l7I_yAfrBk}\\
+(\texttt{t5\_best\_checkpoint.tar.gz}: fine-tuned \texttt{t5-small}, best epoch)
 
 %==================================================================
 \section*{Part 1: Fine-tuning BERT for Sentiment Classification}
@@ -76,7 +81,8 @@ Drop & \textbf{5.96 points} \\
 Predictions are in \texttt{out\_transformed.txt}.
 
 \subsection*{Q3. Data augmentation}
-I sampled 5{,}000 random training reviews (\texttt{shuffle(seed=42)}) and applied the same \texttt{custom\_transform}
+I sampled 5{,}000 random training reviews (\texttt{shuffle(seed=42)}) and applied the same transformation
+(\texttt{custom\_transform})
 to them. I concatenated them with the full original training set (30k examples total) and trained a fresh
 \texttt{bert-base-cased} model with the same hyperparameters.
 
@@ -123,7 +129,7 @@ real noise, and aggressive augmentation can introduce label noise.
 All lengths are counted in \texttt{google-t5/t5-small} tokenizer tokens. Vocabulary size is the number of distinct
 token ids that occur in that split.
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \begin{tabular}{lrr}
 \toprule
@@ -141,7 +147,7 @@ Vocabulary size (SQL) & 555 & 395 \\
 \caption{Data statistics before any pre-processing (T5 tokenizer, no special tokens).}
 \end{table}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \begin{tabular}{lrr}
 \toprule
@@ -161,7 +167,7 @@ SQL, and the \texttt{</s>} EOS token appended to both sides.}
 \end{table}
 
 \subsection*{Q5. T5 fine-tuning details}
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \begin{tabularx}{\textwidth}{lX}
 \toprule
@@ -196,7 +202,7 @@ better than beam search on dev (Table~4). \\
 \end{table}
 
 \subsection*{Q6. Results and error analysis}
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \begin{tabular}{lcc}
 \toprule
@@ -229,10 +235,11 @@ In this task, dropping one condition makes the records wrong. Greedy decoding st
 most likely path, which the model was trained to follow with teacher forcing, and so produces the full,
 long ATIS queries more reliably. The final system therefore uses greedy decoding.
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
-\small
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.4cm}XXl}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}Xr}
 \toprule
 Error Type & Example of Error & Error Description & Statistics \\
 \midrule
