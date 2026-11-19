@@ -1,0 +1,238 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\title{DS-GA 1011 Assignment 4: Fine-tuning Language Models}
+\author{\todo{Your Name} (\todo{NetID})}
+\date{Fall 2026}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Code:} \url{https://github.com/Reemostat/nyu-dsga1011-a4}\\
+\textbf{Model checkpoint (Q7):} \todo{Google Drive folder link}
+
+%==================================================================
+\section*{Part 1: Fine-tuning BERT for Sentiment Classification}
+
+\subsection*{Q1. Fine-tuning BERT}
+I implemented the training loop in \texttt{do\_train}. For each of the 3 epochs and each batch, the loop
+moves the batch to the GPU and runs a forward pass. The batch includes \texttt{labels}, so the model returns the cross-entropy loss.
+The loop then calls \texttt{optimizer.zero\_grad()}, back-propagates, and steps both the AdamW optimizer (lr $5\times10^{-5}$) and the linear
+learning-rate scheduler. All hyperparameters are the defaults: batch size 8, 3 epochs, \texttt{bert-base-cased}.
+
+\textbf{Result:} fine-tuned on the full IMDB training set (25k reviews), the model reaches
+\textbf{93.12\%} accuracy on the IMDB test set (25k reviews). Predictions are in \texttt{out\_original.txt}.
+
+\subsection*{Q2a. Transformation design}
+My transformation simulates a \emph{careless user who paraphrases loosely and types quickly}. It combines
+synonym substitution with keyboard typos.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Segmentation.} The review is split with the regex \verb/([^A-Za-z]+)/, keeping the delimiters. This gives an
+  alternating sequence of alphabetic words and non-letter runs (spaces, punctuation, digits, HTML such as
+  \texttt{<br />}). Only the alphabetic pieces can change, and concatenating the pieces rebuilds the text exactly.
+  \item \textbf{Eligibility.} A word is eligible if it has at least 4 letters and is not in a small protected list.
+  The list holds negations (\emph{not, never, nothing, without, cannot, \ldots}), common function words
+  (\emph{this, that, with, from, have, very, \ldots}), contraction stems (\emph{didn, wasn, don, \ldots}) and the HTML token
+  \emph{br}. The protected list keeps the label unchanged: WordNet would otherwise map \emph{not} to \emph{non}, for example.
+  \item \textbf{Synonym replacement ($p=0.30$).} For each eligible word, draw $r\sim U(0,1)$. If $r<0.30$, collect
+  every lemma of every WordNet synset of the lower-cased word, drop the word itself and non-ASCII lemmas, and replace
+  underscores with spaces. Pick one candidate uniformly at random and copy the original capitalization
+  (all-caps or first-letter capital). If WordNet has no synonym, the word stays unchanged.
+  \item \textbf{Keyboard typo ($p=0.20$).} Otherwise, if $0.30\le r<0.50$, pick one letter of the word uniformly at
+  random and replace it with a uniformly chosen neighbouring key on a QWERTY keyboard
+  (e.g.\ \texttt{a}$\to$\{\texttt{q,w,s,z}\}), keeping its case. Each word gets at most one typo.
+\end{enumerate}
+
+\noindent\textbf{Example.} \emph{``I really loved this movie. The acting was superb and the story kept me engaged
+until the very end.''} $\to$ \emph{``I really loved this mobie. The acging was siperb and the taradiddle keep me
+engaged until the very end.''}
+
+\noindent\textbf{Why it is reasonable.} Real users write reviews fast, often on phones, so slipped keys
+(\emph{mobie}, \emph{siperb}) are common in user-generated text. Different users also describe the same opinion
+with different words: \emph{film} vs.\ \emph{movie}, \emph{superb} vs.\ \emph{splendid}. A human reading the
+transformed review still assigns the same sentiment. Negations and function words are protected, every edit is local
+(one word), and the overall structure and sentiment-bearing phrases stay recognisable.
+
+\subsection*{Q2b. Results on the transformed test set}
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Test set & Accuracy \\
+\midrule
+Original & 93.12\% \\
+Transformed & 87.17\% \\
+\midrule
+Drop & \textbf{5.96 points} \\
+\bottomrule
+\end{tabular}
+\end{center}
+Predictions are in \texttt{out\_transformed.txt}.
+
+\subsection*{Q3. Data augmentation}
+I sampled 5{,}000 random training reviews (\texttt{shuffle(seed=42)}) and applied the same \texttt{custom\_transform}
+to them. I concatenated them with the full original training set (30k examples total) and trained a fresh
+\texttt{bert-base-cased} model with the same hyperparameters.
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Model & Original test & Transformed test \\
+\midrule
+Trained on original data (Q1/Q2) & 93.12\% & 87.17\% \\
+Trained on augmented data (Q3)   & 93.03\% & 89.59\% \\
+\midrule
+Change & $-0.09$ & $+2.42$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Predictions are in \texttt{out\_augmented\_original.txt} and \texttt{out\_augmented\_transformed.txt}.
+
+\textbf{(1) Transformed test data.} Performance improved by 2.42 points (87.17\%$\to$89.59\%), recovering about
+40\% of the accuracy lost under the transformation.
+
+\textbf{(2) Original test data.} Accuracy is essentially unchanged (93.12\%$\to$93.03\%, $-0.09$). A difference this
+small is within run-to-run noise, so augmentation neither clearly helped nor hurt clean performance.
+
+\textbf{Intuitive explanation.} During training, the original model only saw clean text. A typo such as
+\emph{siperb} is broken by BERT's WordPiece tokenizer into rare sub-word pieces that the model never learned to tie
+to sentiment, and an unusual synonym such as \emph{taradiddle} is effectively an unseen word. With augmentation,
+the model sees noisy versions of reviews with the same label. It learns to rely on the remaining clean context and
+to map corrupted sub-word sequences to the same meaning, which makes it more robust to this specific noise.
+Clean reviews are still the majority of the training data (25k of 30k), so performance on clean text is preserved.
+The gain is only partial because 5k noisy examples (one sixth of the data, a single noisy version per review)
+cover only a small share of the possible typos and synonyms.
+
+\textbf{Limitation.} Augmentation only helps for the shift you anticipated and simulated. Here the model became more
+robust to \emph{my} typo/synonym noise, but that says nothing about other out-of-distribution shifts at test
+time: different domains (product or restaurant reviews), sarcasm, other languages or dialects, paraphrase styles
+WordNet cannot produce, or other typo patterns. In practice the true test-time distribution is unknown, so you
+cannot enumerate every transformation to augment with. Synthetic noise can also differ in its statistics from
+real noise, and aggressive augmentation can introduce label noise.
+
+%==================================================================
+\section*{Part 2: Fine-tuning T5 for Text-to-SQL}
+
+\subsection*{Q4. Data statistics}
+All lengths are counted in \texttt{google-t5/t5-small} tokenizer tokens. Vocabulary size is the number of distinct
+token ids that occur in that split.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrr}
+\toprule
+Statistics Name & Train & Dev \\
+\midrule
+Number of examples & 4225 & 466 \\
+Mean sentence length & 17.10 & 17.07 \\
+Max sentence length & 59 & 43 \\
+Mean SQL query length & 216.37 & 210.05 \\
+Max SQL query length & 510 & 502 \\
+Vocabulary size (natural language) & 791 & 465 \\
+Vocabulary size (SQL) & 555 & 395 \\
+\bottomrule
+\end{tabular}
+\caption{Data statistics before any pre-processing (T5 tokenizer, no special tokens).}
+\end{table}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrr}
+\toprule
+Statistics Name & Train & Dev \\
+\midrule
+\multicolumn{3}{l}{\textbf{T5 fine-tuned (t5-small)}} \\
+Mean sentence length & 23.10 & 23.07 \\
+Max sentence length & 65 & 49 \\
+Mean SQL query length & 217.57 & 211.24 \\
+Max SQL query length & 511 & 503 \\
+Vocabulary size (natural language) & 795 & 469 \\
+Vocabulary size (SQL) & 556 & 396 \\
+\bottomrule
+\end{tabular}
+\caption{Data statistics after pre-processing: task prefix on the input, \texttt{<}/\texttt{<=} placeholders in the
+SQL, and the \texttt{</s>} EOS token appended to both sides.}
+\end{table}
+
+\subsection*{Q5. T5 fine-tuning details}
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+Design choice & Description \\
+\midrule
+Data processing &
+The input becomes \texttt{"translate English to SQL: "} + the natural-language query. In the SQL, the comparison
+operators \texttt{<=} and \texttt{<} are replaced by the words \texttt{LTE\_OP} and \texttt{LT\_OP} before tokenization,
+because the T5 SentencePiece vocabulary has no \texttt{<} character (it would become \texttt{<unk>}). They are mapped
+back after decoding, and runs of whitespace are collapsed. I verified that encoding then decoding reproduces all
+4225 train and 466 dev SQL queries character-for-character. \\
+Tokenization &
+The default \texttt{T5TokenizerFast} (\texttt{google-t5/t5-small}) is used for both encoder and decoder, with
+\texttt{</s>} appended to both sequences. No truncation is needed: the longest target is 511 tokens. The decoder input is the
+target shifted right, with T5's decoder start token (the pad token, id 0) prepended. Batches are dynamically padded
+with id 0, and the loss ignores pad positions. Decoding uses
+\texttt{clean\_up\_tokenization\_spaces=False} so that the SQL spacing (e.g.\ \texttt{" , "}) is preserved. \\
+Architecture &
+The full pretrained \texttt{T5ForConditionalGeneration} (\texttt{t5-small}, 60.5M parameters) is fine-tuned:
+encoder, decoder, shared embeddings and LM head. No layers are frozen. \\
+Hyperparameters &
+AdamW (lr $5\times10^{-4}$, $\beta=(0.9,0.999)$, $\epsilon=10^{-8}$, weight decay 0.01 except on biases and
+LayerNorm), batch size 16, cosine schedule with 1 warm-up epoch and 20 scheduled epochs, token-level cross-entropy.
+After every epoch the model is evaluated on dev by generating with beam search (4 beams, up to 512 new tokens) and
+executing the SQL. The checkpoint with the best dev Record F1 is kept, with early stopping after 5 epochs without
+improvement. The run hit the 3-hour job limit during epoch 15; the best checkpoint is from epoch 14 (index 13). \\
+\bottomrule
+\end{tabularx}
+\caption{Details of the best-performing T5 model configuration (fine-tuned).}
+\end{table}
+
+\subsection*{Q6. Results and error analysis}
+\begin{table}[h]
+\centering
+\begin{tabular}{lcc}
+\toprule
+System & Query EM & F1 score \\
+\midrule
+\multicolumn{3}{l}{\textbf{Dev Results}} \\
+\multicolumn{3}{l}{\emph{T5 fine-tuned}} \\
+Full model (best epoch, beam 4) & 63.09 & 79.64 \\
+\todo{ablation row(s)} & \todo{} & \todo{} \\
+\midrule
+\multicolumn{3}{l}{\textbf{Test Results}} \\
+T5 fine-tuning & \todo{} & \todo{} \\
+\bottomrule
+\end{tabular}
+\caption{Development and test results (\%).}
+\end{table}
+
+\noindent Dev Record F1 during training (beam 4):
+epoch 1: 27.6, 2: 42.7, 3: 55.7, 4: 61.1, 5: 69.2, 6: 69.4, 7: 74.9, 8: 75.7, 9: 74.6, 10: 74.7, 11: 77.4,
+12: 78.4, 13: 78.5, 14: 79.6.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{lXXl}
+\toprule
+Error Type & Example of Error & Error Description & Statistics \\
+\midrule
+\todo{} & \todo{} & \todo{} & \todo{}/466 \\
+\todo{} & \todo{} & \todo{} & \todo{}/466 \\
+\todo{} & \todo{} & \todo{} & \todo{}/466 \\
+\bottomrule
+\end{tabularx}
+\caption{Qualitative error analysis on the dev set.}
+\end{table}
+
+\subsection*{Q7. Performance evaluation}
+Test predictions: \texttt{results/t5\_ft\_experiment\_test.sql} and \texttt{records/t5\_ft\_experiment\_test.pkl}.
+Test Record F1 as reported on the leaderboard: \todo{}.
+
+\end{document}
