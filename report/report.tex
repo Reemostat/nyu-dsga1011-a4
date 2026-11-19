@@ -8,7 +8,7 @@
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 
 \title{DS-GA 1011 Assignment 4: Fine-tuning Language Models}
-\author{\todo{Your Name} (\todo{NetID})}
+\author{Rishit Tribhovanbhai Maheshwari (rm7336)}
 \date{Fall 2026}
 
 \begin{document}
@@ -208,10 +208,11 @@ Full model, greedy decoding (final) & 67.60 & 82.91 \\
 Full model, beam search (4 beams) & 63.09 & 80.16 \\
 \midrule
 \multicolumn{3}{l}{\textbf{Test Results}} \\
-T5 fine-tuning & \todo{} & \todo{} \\
+T5 fine-tuning (greedy) & 77.31$^*$ & 79.92 \\
 \bottomrule
 \end{tabular}
-\caption{Development and test results (\%).}
+\caption{Development and test results (\%). Dev Query EM is exact match on the SQL string. $^*$The test leaderboard
+cannot compute SQL EM (gold test SQL is hidden), so the test entry is Record EM.}
 \end{table}
 
 \noindent Dev Record F1 during training (beam 4):
@@ -287,6 +288,8 @@ structural differences, such as extra selected columns or extra filters (e.g.\ a
 
 \subsection*{Q7. Performance evaluation}
 Test predictions (greedy decoding of the best checkpoint): \texttt{results/t5\_ft\_experiment\_test.sql} and \texttt{records/t5\_ft\_experiment\_test.pkl}.
-Test Record F1 as reported on the leaderboard: \todo{}.
+Leaderboard results: Record F1 \textbf{79.92}, Record EM 77.31, with 43/432 queries raising an SQL error. This is above
+the 65 F1 threshold. The test F1 is about 3 points below dev F1 (82.91), a small gap that is consistent with selecting the
+checkpoint and the decoding method on dev.
 
 \end{document}
